@@ -2342,5 +2342,63 @@
             });
         }, 5000);
     </script>
+    <script>
+// تحميل البيانات وتحليل المخاطر
+async function loadTelecomDataAndCheckAlerts() {
+  try {
+    // تحميل data.json (الرابط الخام لتجنب مشاكل CORS)
+    const response = await fetch('https://raw.githubusercontent.com/haf-s/neurovision/main/data.json');
+    const equipments = await response.json(); // افتراض أن JSON هو array مباشرة
+
+    let criticalCount = 0;
+    let alerts = [];
+
+    equipments.forEach(eq => {
+      const temp = parseFloat(eq.temperature || 0);
+      const cpu = parseFloat(eq.cpu_usage || 0);
+      const failure = parseInt(eq.failure_in_24h || 0);
+      const packetLoss = parseFloat(eq.packet_loss || 0);
+
+      if (failure === 1 || temp > 80 || cpu > 85 || packetLoss > 0.1) {
+        criticalCount++;
+        alerts.push(`⚠️ ${eq.equipment_id}: Temp ${temp.toFixed(1)}°C, CPU ${cpu.toFixed(1)}%, Failure ${failure}`);
+      }
+    });
+
+    // تحديث العداد في الواجهة
+    const alertStat = document.getElementById('statAlerts');
+    if (alertStat) {
+      alertStat.textContent = criticalCount;
+      alertStat.classList.add('text-danger'); // لون أحمر إذا خطر
+    }
+
+    // إرسال notification push إذا في خطر
+    if (criticalCount > 0 && Notification.permission === 'granted') {
+      new Notification('🚨 NeuroVision Alerte Critique', {
+        body: `${criticalCount} équipements en risque de panne !\n${alerts.slice(0,3).join('\n')}`,
+        icon: 'https://haf-s.github.io/neurovision/favicon.png', // اختياري
+        badge: 'https://haf-s.github.io/neurovision/favicon.png'
+      });
+    }
+
+    console.log(`Analyse terminée: ${criticalCount} risques détectés`);
+
+  } catch (error) {
+    console.error('Erreur chargement données:', error);
+  }
+}
+
+// طلب إذن الإشعارات
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+
+// تشغيل التحليل عند فتح التطبيق
+window.addEventListener('load', loadTelecomDataAndCheckAlerts);
+
+// تشغيل كل 5 دقائق (اختياري للتحديث التلقائي)
+setInterval(loadTelecomDataAndCheckAlerts, 5 * 60 * 1000);
+</script>
 </body>
 </html>
+
